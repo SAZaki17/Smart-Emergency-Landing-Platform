@@ -1,0 +1,33 @@
+#include <SPI.h>                                               // Подключаем библиотеку для работы с шиной SPI.
+#include <nRF24L01.h>                                          // Подключаем файл настроек из библиотеки RF24.
+#include <RF24.h>                                              // Подключаем библиотеку для работы с nRF24L01+.
+RF24     radio(7, 10);                                         // Создаём объект radio для работы с библиотекой RF24, указывая номера выводов модуля (CE, SS).
+                        
+const byte address[] [6] = {"00001" , "00002"};                        
+                                                               //
+void setup(){                                                  //
+   
+    radio.begin();           
+    radio.openWritingPipe(address[1]);
+    radio.openReadingPipe(1, address[0]);
+    radio.setPALevel(RF24_PA_MIN);
+    radio.stopListening();
+ }
+
+
+                                                               //
+void loop(){
+  delay(5);
+
+  radio.stopListening(); 
+  int potValue = analogRead(A0);
+  int angleValue = map(potValue, 0 , 1023, 0 ,180); 
+  radio.write(&angleValue, sizeof(angleValue)); 
+  delay(5); 
+  
+  /*const char text[]= "Здравствуй брат"; 
+  radio.write(&text, sizeof(text));
+  delay(1000);*/                                      // ni utk test connection, ada ke tak message yang dihantar ke receiver 
+
+
+}                                                  //

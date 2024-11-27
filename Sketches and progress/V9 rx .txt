@@ -1,0 +1,54 @@
+#include <SPI.h> // Подключаем библиотеку для работы с шиной SPI.
+#include <nRF24L01.h> // Подключаем файл настроек из библиотеки RF24.
+#include <RF24.h> // Подключаем библиотеку для работы с nRF24L01+.
+RF24 radio(7, 10); // Создаём объект radio (CE, SS).
+int myData[10]; // Объявл.массив для приёма и хран.данных (до 32 байт)
+int ackData[10]; // Объявляем массив для передачи данных 
+ //#include <iarduino_MultiServo.h> // Подключаем библиотеку iarduino_MultiServo
+ // iarduino_MultiServo MSS; // Объявляем объект MSS, для работы с библиотекой
+ #include <Servo.h>
+ Servo myservo; 
+ //
+void setup(){ //
+ Serial.begin(9600);
+ while(!Serial){} // Ждём готовность Serial к передаче данных в Serial()
+ // MSS.servoSet(0, SERVO_SG90); // Сервопривод SG90 подключён к выводу № 0 MultiServoShield.
+ // MSS.begin();
+ radio.begin(); // Инициируем работу nRF24L01+
+ radio.setChannel (70); // Указываем канал передачи данных (от 0 до 125), 27 - значит передача данных осуществляется на частоте 2,427 ГГц.
+ radio.setDataRate (RF24_1MBPS); // Указываем скорость передачи данных (RF24_250KBPS, RF24_1MBPS, RF24_2MBPS), RF24_1MBPS - 1Мбит/сек.
+ radio.setPALevel (RF24_PA_MAX); // Указываем мощность передатчика (RF24_PA_MIN=-18dBm, RF24_PA_LOW=-12dBm, RF24_PA_HIGH=-6dBm, RF24_PA_MAX=0dBm).
+ radio.enableAckPayload(); // Указываем что в пакетах подтверждения приёма есть блок с пользовательскими данными.
+// radio.enableDynamicPayloads(); // Разрешить динамически изменяемый размер блока данных на всех трубах.
+ radio.openReadingPipe (1, 0xAABBCCDD11LL); // Открываем 1 трубу с адресом 0xAABBCCDD11, для приема данных.
+ radio.startListening (); // Включаем приемник, начинаем прослушивать открытые трубы.
+ radio.writeAckPayload (1, &ackData, sizeof(ackData) ); // Помещаем данные всего массива ackData в буфер FIFO. Как только будут получены любые данные от передатчика на 1 трубе, то данные из буфера FIFO будут отправлены этому передатчику вместе с пакетом подтверждения приёма его данных.
+myservo.attach(5);
+} // В модуле имеется 3 буфера FIFO, значит в них одновременно может находиться до трёх разных или одинаковых данных для ответа по одной или разным трубам.
+ // После отправки данных из буфера FIFO к передатчику, соответствующий буфер очищается и способен принять новые данные для отправки.
+void loop(){ //
+// Заранее готовим данные для отправки назад (передатчику)
+ackData[0] = 56; 
+ackData[1] = 245; 
+ackData[2] = -243; 
+ackData[3] = -264; 
+ackData[4] = -285;
+ackData[5] = -305;
+ackData[6] = -325;
+ackData[7] = -350;
+ackData[8] = -370;
+ackData[9] = -390; 
+ 
+ if(radio.available()){ // Если в буфере приёма есть принятые данные от передатчика, то ...
+ radio.read ( &myData, sizeof(myData) ); // Читаем данные из буфера приёма в массив myData указывая сколько всего байт может поместиться в массив.
+ radio.writeAckPayload (1, &ackData, sizeof(ackData) ); // Помещаем данные всего массива ackData в буфер FIFO для их отправки на следующее получение данных от передатчика на 1 трубе.
+ } // Если все 3 буфера FIFO уже заполнены, то функция writeAckPayload() будет проигнорирована.
+ // MSS.servoWrite(0, myData[0]);
+ myservo.write(myData[0]);
+// Выводим в Serial то, что пришло от передатчика:
+// ДЛЯ УСКОРЕНИЯ РАБОТЫ ВСЕЙ СИСТЕМЫ В ОКОНЧАТ.ВЕРСИИ ЗАКОММЕНТИРОВАТЬ ВСЕ Serial.print(..)
+ Serial.print("mDa[0]="); Serial.print('\t'); Serial.print(myData[0]); Serial.print('\t');
+ Serial.print("mDa[1]="); Serial.print('\t'); Serial.print(myData[1]); Serial.print('\t');
+ Serial.print("mDa[2]="); Serial.print('\t'); Serial.print(myData[2]); Serial.print('\t');
+ Serial.println();
+}

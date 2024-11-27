@@ -1,0 +1,49 @@
+#include <Wire.h>
+#include <MPU6050.h>
+#include <NRFLite.h>
+
+
+
+// Create an instance of MPU6050
+MPU6050 mpu;
+
+// Create an instance of NRFLite
+NRFLite radio;
+
+void setup() {
+  Serial.begin(9600);
+
+  // Initialize MPU6050 sensor
+  Wire.begin();
+  mpu.initialize();
+
+  // Initialize NRFLite with the specified radio ID
+  radio.init(1, 7, 10);
+
+  Serial.println("Transmitter ready");
+}
+
+void loop() {
+  // Read accelerometer data
+  int16_t ax, ay, az;
+  mpu.getAcceleration(&ax, &ay, &az);
+
+  // Calculate pitch and roll angles (in degrees)
+  float pitch = atan2(-ax, sqrt(ay * ay + az * az)) * 180.0 / PI;
+  float roll = atan2(ay, sqrt(ax * ax + az * az)) * 180.0 / PI;
+
+  // Prepare angle data as a byte array
+  byte angleData[sizeof(float) * 2];
+  memcpy(angleData, &pitch, sizeof(float));
+  memcpy(angleData + sizeof(float), &roll, sizeof(float));
+
+  // Send angle data via NRFLite
+  radio.send(1, &angleData, sizeof(angleData));
+
+  Serial.print("Pitch: ");
+  Serial.print(pitch);
+  Serial.print(" degrees, Roll: ");
+  Serial.println(roll);
+
+  delay(1000); // Adjust delay as needed for sampling rate
+}

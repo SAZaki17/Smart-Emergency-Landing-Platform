@@ -1,0 +1,18 @@
+#include <Servo.h> // подключаем библиотеку для работы с серводвигатели. 
+
+//motor prep
+Servo myservoyaw; 
+Servo myservotangaj; 
+Servo myservokrena; 
+ int pos = 90; 
+void setup(){ //
+ Serial.begin(9600);
+ //motor setup 
+ myservoyaw.attach(11);
+ myservoyaw.write(95);
+ myservotangaj.attach(5);
+ myservotangaj.write(pos);
+ myservokrena.attach(6);
+ myservokrena.write(pos);
+}
+void loop(){}

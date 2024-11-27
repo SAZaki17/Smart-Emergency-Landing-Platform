@@ -1,0 +1,71 @@
+#include <SPI.h> // Подключаем библиотеку для работы с шиной SPI.
+#include <nRF24L01.h> // Подключаем файл настроек из библиотеки RF24.
+#include <RF24.h> // Подключаем библиотеку для работы с nRF24L01+.
+#include <Wire.h>
+#include <MPU6050_light.h>
+#include "SPI.h"
+RF24 radio(7, 10); // Создаём объект radio для работы с библиотекой RF24, указывая номера выводов модуля (CE, SS)
+int myData[10]; // Объявляем массив для хранения и передачи данных.
+int ackData[10]; // Объявляем массив для получения данных из пакета подтверждения приёма (до 32 байт включительно).
+ //
+MPU6050 mpu(Wire); 
+unsigned long timer=0; 
+
+void setup(){ //
+ Serial.begin(9600);
+ radio.begin (); // Инициируем работу модуля nRF24L01+.
+ radio.setChannel (70); // Указываем канал передачи данных (от 0 до 125), 27 - значит передача данных осуществляется на частоте 2,427 ГГц.
+ radio.setDataRate (RF24_1MBPS); // Указываем скорость передачи данных (RF24_250KBPS, RF24_1MBPS, RF24_2MBPS), RF24_1MBPS - 1Мбит/сек.
+ radio.setPALevel (RF24_PA_MAX); // Указываем мощность передатчика (RF24_PA_MIN=-18dBm, RF24_PA_LOW=-12dBm, RF24_PA_HIGH=-6dBm, RF24_PA_MAX=0dBm).
+ radio.enableAckPayload(); // Указываем что в пакетах подтверждения приёма есть блок с пользовательскими данными.
+// radio.enableDynamicPayloads(); // Разрешить динамически изменяемый размер блока данных на всех трубах.
+ radio.openWritingPipe (0xAABBCCDD11LL); // Открываем трубу с адресом 0xAABBCCDD11 для передачи данных (передатчик может одновременно вещать только по одной трубе).
+Wire.begin();
+
+// setup mpu 
+
+  byte situasi = mpu.begin();
+  Serial.print(F("MPU6050 status: "));
+  Serial.println(situasi);
+  while (situasi != 0) {}
+
+  Serial.println(F("Calculating offsets, do not move MPU6050"));
+  delay(1000);
+  // mpu.upsideDownMounting = true; // uncomment this line if the MPU6050 is mounted upside-down
+  mpu.calcOffsets();  // gyro and accelero
+  Serial.println("Done!\n");
+
+
+} //
+ //
+void loop(){ //
+// Заполняем данными массив для отправки:
+ mpu.update();
+ myData[0] = mpu.getAngleX(); // Данные для сервомотора на приемной стороне  myData[1] = random(200, 250); 
+ myData[1] = mpu.getAngleY();
+ myData[2] = mpu.getAngleZ(); 
+ radio.write(&myData, sizeof(myData)); // Отправляем данные из массива myData указывая сколько байт массива мы хотим отправить.
+ if( radio.isAckPayloadAvailable() ){ // Если в буфере имеются принятые данные из пакета подтверждения приёма, то ...
+ radio.read(&ackData, sizeof(ackData)); // Читаем данные из буфера в массив ackData указывая сколько всего байт может поместиться в массив.
+ } 
+
+ Serial.print(mpu.getAngleX());Serial.print('\t');
+ Serial.print(mpu.getAngleY());Serial.print('\t');
+ Serial.print(mpu.getAngleZ());Serial.println(); 
+// Выводим в Serial данные, принятые от приемника:
+// ДЛЯ УСКОРЕНИЯ РАБОТЫ ВСЕЙ СИСТЕМЫ В ОКОНЧАТ.ВЕРСИИ ЗАКОММЕНТИРОВАТЬ ВСЕ Serial.print(..)
+/*
+ Serial.print("ack[0]="); Serial.print('\t'); Serial.print(ackData[0]); Serial.print('\t');
+ Serial.print("ack[1]="); Serial.print('\t'); Serial.print(ackData[1]); Serial.print('\t');
+ Serial.print("ack[2]="); Serial.print('\t'); Serial.print(ackData[2]); Serial.print('\t');
+ Serial.print("ack[3]="); Serial.print('\t'); Serial.print(ackData[3]); Serial.print('\t');
+ Serial.print("ack[4]="); Serial.print('\t'); Serial.print(ackData[4]); Serial.print('\t'); 
+ Serial.print("ack[5]="); Serial.print('\t'); Serial.print(ackData[5]); Serial.print('\t');
+ Serial.print("ack[6]="); Serial.print('\t'); Serial.print(ackData[6]); Serial.print('\t'); 
+ Serial.print("ack[7]="); Serial.print('\t'); Serial.print(ackData[7]); Serial.print('\t');
+ Serial.print("ack[8]="); Serial.print('\t'); Serial.print(ackData[8]); Serial.print('\t');
+ Serial.print("ack[9]="); Serial.print('\t'); Serial.print(ackData[9]); Serial.print('\t'); 
+ Serial.println();*/ 
+ //
+ delay(10); // Устанавливаем задержку
+}

@@ -1,0 +1,111 @@
+/* П Е Р Е Д А Ю Щ А Я С Т О Р О Н А
+ = = = = = = = = = = = = = = = = = = 
+ Функциональная схема:
+ https://drive.google.com/file/d/1l2vdaPLXsUC1i0GDoJpTjR-VtGhIGxQf/view?usp=sharing
+ 
+ Программа двухстороннего обмена данными с помощью 
+радиомодуля NRF24L01+ 2.4G (Trema-модуль) 
+https://iarduino.ru/shop/Expansion-payments/radio-modul-nrf24l01-2-4g-trema-modul-v2-0.html
+ ПЕРЕДАТЧИК ОСУЩЕСТВЛЯЕТ:
+* Формирует массив для отправки приемнику: myData[10].
+* Принимает от приемника массив: ackData[10].
+Элементы массива myData[10] формируется так: 1-й элемент - сигнал от потенциометра 
+для управления серводвигателем на принимающей стороне. 2-й элемент - случайное число
+в диапазоне от 200 до 249. Остальные элементы - фиксированные числа 250, 280 и т.д.
+ Формирование элементов массива:
+ myData[0] = map(analogRead(A0), 0, 1023, 0, 180); 
+ myData[1] = random(200, 250); 
+ myData[2] = 250; 
+ myData[3] = 280; 
+ myData[4] = 300; 
+ myData[5] = 320; 
+ myData[6] = 340; 
+… … …
+ ПРИЕМНИК ОСУЩЕСТВЛЯЕТ:
+* Принимает от передатчика данные и помещает в массив myData[7].
+* Готовит для отправки назад (передатчику) массив ackData[8], элементы 
+которого формируется так: 1-й элемент - сигнал от простейшего датчика освещенности 
+на фоторезисторе [https://amperka.ru/product/troyka-light-sensor], данный сигнал 
+из диапазона 0...1023 преобразуется в диапахон -100...-199.
+Остальные элементы - фиксированные числа -222, -243, -264 и т.д.
+= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+*/
+#include <SPI.h> // Подключаем библиотеку для работы с шиной SPI.
+#include <nRF24L01.h> // Подключаем файл настроек из библиотеки RF24.
+#include <RF24.h> // Подключаем библиотеку для работы с nRF24L01+.
+#include <MPU6050_light.h>
+
+RF24 radio(7, 10); // Создаём объект radio для работы с библиотекой RF24, указывая номера выводов модуля (CE, SS)
+int myData[10]; // Объявляем массив для хранения и передачи данных.
+int ackData[10]; // Объявляем массив для получения данных из пакета подтверждения приёма (до 32 байт включительно).
+ //
+MPU6050 mpu(Wire);
+unsigned long timer =0; 
+
+void setup(){ //
+ Serial.begin(9600);
+ radio.begin (); // Инициируем работу модуля nRF24L01+.
+ radio.setChannel (70); // Указываем канал передачи данных (от 0 до 125), 27 - значит передача данных осуществляется на частоте 2,427 ГГц.
+ radio.setDataRate (RF24_1MBPS); // Указываем скорость передачи данных (RF24_250KBPS, RF24_1MBPS, RF24_2MBPS), RF24_1MBPS - 1Мбит/сек.
+ radio.setPALevel (RF24_PA_MAX); // Указываем мощность передатчика (RF24_PA_MIN=-18dBm, RF24_PA_LOW=-12dBm, RF24_PA_HIGH=-6dBm, RF24_PA_MAX=0dBm).
+ radio.enableAckPayload(); // Указываем что в пакетах подтверждения приёма есть блок с пользовательскими данными.
+// radio.enableDynamicPayloads(); // Разрешить динамически изменяемый размер блока данных на всех трубах.
+ radio.openWritingPipe (0xAABBCCDD11LL); // Открываем трубу с адресом 0xAABBCCDD11 для передачи данных (передатчик может одновременно вещать только по одной трубе).
+ Wire.begin(); 
+
+  byte situasi = mpu.begin();
+  Serial.print(F("MPU6050 status: "));
+  Serial.println(situasi);
+  while (situasi != 0) {}
+
+  Serial.println(F("Calculating offsets, do not move MPU6050"));
+  delay(1000);
+  // mpu.upsideDownMounting = true; // uncomment this line if the MPU6050 is mounted upside-down
+  mpu.calcOffsets();  // gyro and accelero
+  Serial.println("Done!\n");
+} //
+ //
+void loop(){ //
+// Заполняем данными массив для отправки:
+ if ((millis() - timer) > 10) {  // print data every 10ms
+            Serial.print("X : ");
+            Serial.print(mpu.getAngleX());
+            Serial.print("\tY : ");
+            Serial.print(mpu.getAngleY());
+            Serial.print("\tZ : ");
+            Serial.println(mpu.getAngleZ()); 
+            int anglex = mpu.getAngleX(); 
+            int angley = mpu.getAngleY(); 
+            int anglez = mpu.getAngleZ(); 
+            timer = millis();
+ myData[0] = map(analogRead(A0), 0, 1023, 0, 180); // Данные для сервомотора на приемной стороне 
+ myData[1] = random(200, 250); 
+ myData[2] = 250; 
+ myData[3] = 280; 
+ myData[4] = 300; 
+ myData[5] = 320; 
+ myData[6] = 340;
+ myData[7] = 360;
+ myData[8] = 380;
+ myData[9] = 400; 
+ radio.write(&myData, sizeof(myData)); // Отправляем данные из массива myData указывая сколько байт массива мы хотим отправить.
+ if( radio.isAckPayloadAvailable() ){ // Если в буфере имеются принятые данные из пакета подтверждения приёма, то ...
+ radio.read(&ackData, sizeof(ackData)); // Читаем данные из буфера в массив ackData указывая сколько всего байт может поместиться в массив.
+ } 
+// Выводим в Serial данные, принятые от приемника:
+// ДЛЯ УСКОРЕНИЯ РАБОТЫ ВСЕЙ СИСТЕМЫ В ОКОНЧАТ.ВЕРСИИ ЗАКОММЕНТИРОВАТЬ ВСЕ Serial.print(..)
+ /*Serial.print("ack[0]="); Serial.print('\t'); Serial.print(ackData[0]); Serial.print('\t');
+ Serial.print("ack[1]="); Serial.print('\t'); Serial.print(ackData[1]); Serial.print('\t');
+ Serial.print("ack[2]="); Serial.print('\t'); Serial.print(ackData[2]); Serial.print('\t');
+ Serial.print("ack[3]="); Serial.print('\t'); Serial.print(ackData[3]); Serial.print('\t');
+ Serial.print("ack[4]="); Serial.print('\t'); Serial.print(ackData[4]); Serial.print('\t'); 
+ Serial.print("ack[5]="); Serial.print('\t'); Serial.print(ackData[5]); Serial.print('\t');
+ Serial.print("ack[6]="); Serial.print('\t'); Serial.print(ackData[6]); Serial.print('\t'); 
+ Serial.print("ack[7]="); Serial.print('\t'); Serial.print(ackData[7]); Serial.print('\t');
+ Serial.print("ack[8]="); Serial.print('\t'); Serial.print(ackData[8]); Serial.print('\t');
+ Serial.print("ack[9]="); Serial.print('\t'); Serial.print(ackData[9]); Serial.print('\t'); 
+ Serial.println();
+ //*/
+ //delay(10); // Устанавливаем задержку
+}
+}

@@ -1,0 +1,139 @@
+#include <SPI.h> // Подключаем библиотеку для работы с шиной SPI.
+#include <nRF24L01.h> // Подключаем файл настроек из библиотеки RF24.
+#include <RF24.h> // Подключаем библиотеку для работы с nRF24L01+.
+#include <Servo.h> // подключаем библиотеку для работы с серводвигатели. 
+
+//radio prep
+RF24 radio(7, 10); // Создаём объект radio (CE, SS).
+int myData[3]; // Объявл.массив для приёма и хран.данных (до 32 байт)
+int ackData[10]; // Объявляем массив для передачи данных 
+ //#include <iarduino_MultiServo.h> // Подключаем библиотеку iarduino_MultiServo
+ // iarduino_MultiServo MSS; // Объявляем объект MSS, для работы с библиотекой
+
+//motor prep
+ Servo myservoyaw; 
+ int pos = 90; 
+ 
+
+//ultrasonice prep 
+const int trigPin1 = 12; 
+const int trigPin2 = 8; 
+const int echoPin1 = 4; 
+const int echoPin2 = 2; 
+
+//distance to start tracking for ultrasonic 
+int t_distance = 100; //in cm 
+int distance1;int distance2; 
+const int NUM_READ = 5;  
+
+void setup(){ //
+ Serial.begin(9600);
+ while(!Serial){} // Ждём готовность Serial к передаче данных в Serial()
+ // MSS.servoSet(0, SERVO_SG90); // Сервопривод SG90 подключён к выводу № 0 MultiServoShield.
+ // MSS.begin();
+
+ //radio setup 
+ radio.begin(); // Инициируем работу nRF24L01+
+ radio.setChannel (70); // Указываем канал передачи данных (от 0 до 125), 27 - значит передача данных осуществляется на частоте 2,427 ГГц.
+ radio.setDataRate (RF24_1MBPS); // Указываем скорость передачи данных (RF24_250KBPS, RF24_1MBPS, RF24_2MBPS), RF24_1MBPS - 1Мбит/сек.
+ radio.setPALevel (RF24_PA_MAX); // Указываем мощность передатчика (RF24_PA_MIN=-18dBm, RF24_PA_LOW=-12dBm, RF24_PA_HIGH=-6dBm, RF24_PA_MAX=0dBm).
+ radio.enableAckPayload(); // Указываем что в пакетах подтверждения приёма есть блок с пользовательскими данными.
+ radio.openReadingPipe (1, 0xAABBCCDD11LL); // Открываем 1 трубу с адресом 0xAABBCCDD11, для приема данных.
+ radio.startListening (); // Включаем приемник, начинаем прослушивать открытые трубы.
+ radio.writeAckPayload (1, &ackData, sizeof(ackData) ); // Помещаем данные всего массива ackData в буфер FIFO. Как только будут получены любые данные от передатчика на 1 трубе, то данные из буфера FIFO будут отправлены этому передатчику вместе с пакетом подтверждения приёма его данных.
+
+//motor setup 
+ myservoyaw.attach(11);
+ myservoyaw.write(pos); 
+
+//ultrasonic setup
+ pinMode(trigPin1, OUTPUT);
+ pinMode(trigPin2, OUTPUT);
+ pinMode(echoPin1, INPUT);
+ pinMode(echoPin2, INPUT);
+
+} // В модуле имеется 3 буфера FIFO, значит в них одновременно может находиться до трёх разных или одинаковых данных для ответа по одной или разным трубам.
+ // После отправки данных из буфера FIFO к передатчику, соответствующий буфер очищается и способен принять новые данные для отправки.
+
+
+void loop(){
+  //Left sensor
+ 	digitalWrite(trigPin2, LOW);  
+	delayMicroseconds(2);  
+  
+	digitalWrite(trigPin2, HIGH);  
+	delayMicroseconds(5);  
+  
+	digitalWrite(trigPin2, LOW);  
+  
+  	int duration = pulseIn(echoPin2, HIGH); 
+    runMiddleArifmOptim(duration);
+  
+  //Right sensor
+  	digitalWrite(trigPin1, LOW);  
+	delay(10);  
+  
+	digitalWrite(trigPin1, HIGH);  
+	delay(20);  
+  
+	digitalWrite(trigPin1, LOW);  
+  
+  	int duration2 = pulseIn(echoPin1, HIGH);
+    runMiddleArifmOptim(duration2); 
+
+    //calculate distance based on duration of each sensor 
+  
+  	distance1 = (duration2*.0343)/2; 
+    distance1 = constrain(distance1, 5, 300); 
+  	distance2 = (duration*.0343)/2;
+    distance2 = constrain(distance2, 5, 300); 
+    //int diff = distance1 - distance2;
+    //int teleng = pos+diff; 
+
+    follow(); 
+
+    Serial.print("D_right ");Serial.print(distance1);
+    Serial.print('\t');Serial.print("D_left ");Serial.println(distance2);
+
+
+ if(radio.available()){ // Если в буфере приёма есть принятые данные от передатчика, то ...
+ radio.read ( &myData, sizeof(myData) );} // Читаем данные из буфера приёма в массив myData указывая сколько всего байт может поместиться в массив.
+
+ //myservo.write(myData[0]); bagi servo motor gerak ikot bacaan gyro 
+// Выводим в Serial то, что пришло от передатчика:
+// ДЛЯ УСКОРЕНИЯ РАБОТЫ ВСЕЙ СИСТЕМЫ В ОКОНЧАТ.ВЕРСИИ ЗАКОММЕНТИРОВАТЬ ВСЕ Serial.print(..)
+ Serial.print("Тангажа="); Serial.print('\t'); Serial.print(myData[0]); Serial.print('\t');
+ Serial.print("Крена="); Serial.print('\t'); Serial.print(myData[1]); Serial.print('\t');
+ Serial.print("Рыскание="); Serial.print('\t'); Serial.print(myData[2]); Serial.print('\t');
+ Serial.println();
+}
+
+void follow()
+{
+  if (distance1 <= t_distance || distance2 <= t_distance)
+  {
+    if (distance1 + 5 < distance2){ pos = pos -3; }
+    if (distance2 + 5 < distance1) { pos = pos +3; }
+  }
+  if (pos > 180)
+  {
+    pos = 180; 
+  }
+  if (pos < 0) 
+  {
+    pos = 0; 
+  }
+  myservoyaw.write(pos); 
+}
+
+//оптимальное бегущее среднее арифметическое 
+float runMiddleArifmOptim(float newVal) {
+  static int t = 0;
+  static float vals[NUM_READ];
+  static float average = 0;
+  if (++t >= NUM_READ) t = 0; // перемотка t
+  average -= vals[t];         // вычитаем старое
+  average += newVal;          // прибавляем новое
+  vals[t] = newVal;           // запоминаем в массив
+  return ((float)average / NUM_READ);
+}

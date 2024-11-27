@@ -1,0 +1,52 @@
+#include "SPI.h"
+#include "NRFLite.h"
+// Define the address for the nRF24L01+ modules
+
+
+// Create an instance of NRFLite
+NRFLite _radio;
+uint8_t _datatangaj; 
+uint8_t _datakrena; 
+uint8_t _datariskanie;
+
+void setup() {
+  Serial.begin(9600);
+
+  // Initialize NRFLite with the specified radio ID
+  _radio.init(0, 7, 10);
+}
+
+void loop() {
+
+  /*
+  if (radio.hasData()) {
+    // Read angle data received via NRFLite
+    byte angleData[sizeof(float) * 2];
+    radio.readData(angleData);
+
+    // Extract pitch and roll angles from byte array
+    float pitch, roll;
+    memcpy(&pitch, angleData, sizeof(float));
+    memcpy(&roll, angleData + sizeof(float), sizeof(float));
+
+    // Display received angle readings
+    Serial.print("Received Pitch: ");
+    Serial.print(pitch);
+    Serial.print(" degrees, Roll: ");
+    Serial.println(roll);                     // ini yang chatgpt punya example 
+
+    
+
+  }*/
+
+  while (_radio.hasData())
+    {
+      _radio.readData(&_datatangaj);
+      Serial.print(_datatangaj);
+      _radio.readData(&_datakrena);
+      Serial.print("\t"); Serial.print(_datakrena);
+      _radio.readData(&_datariskanie);
+      Serial.print("\t"); Serial.println(_datariskanie); 
+
+    }
+}
